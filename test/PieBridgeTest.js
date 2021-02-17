@@ -1,8 +1,7 @@
 const assert = require('assert');
 const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:7545"));
-const PieBEP20EmulateJson = require('../build/contracts/PieBEP20Emulate.json');
-const PieERC20EmulateJson = require('../build/contracts/PieERC20Emulate.json');
+const TokenEmulateJson = require('../build/contracts/TokenEmulate.json');
 
 const abiDecoder = require('abi-decoder');
 const BigNumber = require('bignumber.js');
@@ -39,11 +38,11 @@ describe('Bridge Tests', function () {
         ac2 = accounts[2];
         ac3 = accounts[3];
 
-        pieBEP20 = await new web3.eth.Contract(PieBEP20EmulateJson['abi'])
-            .deploy({ data: PieBEP20EmulateJson['bytecode'] })
+        pieBEP20 = await new web3.eth.Contract(TokenEmulateJson['abi'])
+            .deploy({ data: TokenEmulateJson['bytecode'] })
             .send({ from: owner, gas: GAS });
-        pieERC20 = await new web3.eth.Contract(PieERC20EmulateJson['abi'])
-            .deploy({ data: PieERC20EmulateJson['bytecode'] })
+        pieERC20 = await new web3.eth.Contract(TokenEmulateJson['abi'])
+            .deploy({ data: TokenEmulateJson['bytecode'] })
             .send({ from: owner, gas: GAS });
     });
 });
