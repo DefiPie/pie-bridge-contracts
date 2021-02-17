@@ -9,22 +9,22 @@ contract PieBridge {
     using SafeERC20 for IERC20;
 
     address public admin;
-    address public token;
+    address public bridgeToken;
 
     event Cross(address from, uint amount);
     event Deliver(address from, uint amount);
 
-    constructor(address _token) {
+    constructor(address _bridgeToken) {
         admin = msg.sender;
 
-        require(_token != address(0), "PieBridge: token address is 0");
-        token = _token;
+        require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
+        bridgeToken = _bridgeToken;
     }
 
     function cross(uint amount) public returns (bool) {
         require(amount > 0, "PieBridge: must be positive");
 
-        doTransferIn(msg.sender, token, amount);
+        doTransferIn(msg.sender, bridgeToken, amount);
 
         emit Cross(msg.sender, amount);
 
@@ -36,7 +36,7 @@ contract PieBridge {
         require(amount > 0, "PieBridge: must be positive");
         require(to != address(0), "PieBridge: to address is 0");
 
-        doTransferOut(token, to, amount);
+        doTransferOut(bridgeToken, to, amount);
 
         emit Deliver(to, amount);
 
