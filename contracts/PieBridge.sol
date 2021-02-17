@@ -11,8 +11,8 @@ contract PieBridge {
     address public admin;
     address public bridgeToken;
 
-    event Cross(address from, uint amount);
-    event Deliver(address from, uint amount);
+    event Cross(address from, address to, uint amount);
+    event Deliver(address to, uint amount);
 
     constructor(address _bridgeToken) {
         admin = msg.sender;
@@ -21,12 +21,13 @@ contract PieBridge {
         bridgeToken = _bridgeToken;
     }
 
-    function cross(uint amount) public returns (bool) {
+    function cross(address to, uint amount) public returns (bool) {
         require(amount > 0, "PieBridge: must be positive");
+        require(to != address(0), "PieBridge: to address is 0");
 
         doTransferIn(msg.sender, bridgeToken, amount);
 
-        emit Cross(msg.sender, amount);
+        emit Cross(msg.sender, to, amount);
 
         return true;
     }
@@ -44,10 +45,6 @@ contract PieBridge {
     }
 
     function doTransferOut(address token, address to, uint amount) internal {
-        if (amount == 0) {
-            return;
-        }
-
         IERC20 ERC20Interface = IERC20(token);
         ERC20Interface.safeTransfer(to, amount);
     }
