@@ -52,7 +52,7 @@ contract PieBridge {
 
     function _setPendingAdmin(address newPendingAdmin) public returns (bool) {
         // Check caller = admin
-        require(msg.sender != admin, 'PieBridge: Only admin can set pending admin');
+        require(msg.sender == admin, 'PieBridge: Only admin can set pending admin');
 
         // Store pendingAdmin with value newPendingAdmin
         pendingAdmin = newPendingAdmin;
@@ -62,7 +62,7 @@ contract PieBridge {
 
     function _acceptAdmin() public returns (bool) {
         // Check caller is pendingAdmin
-        require(msg.sender != pendingAdmin, 'PieBridge: Only pendingAdmin can accept admin');
+        require(msg.sender == pendingAdmin, 'PieBridge: Only pendingAdmin can accept admin');
 
         // Store admin with value pendingAdmin
         admin = pendingAdmin;
@@ -73,25 +73,12 @@ contract PieBridge {
         return true;
     }
 
-    function _setPendingcCourier(address newPendingCourier) public returns (bool) {
+    function _setCourier(address newCourier) public returns (bool) {
         // Check caller = admin
-        require(msg.sender != admin, 'PieBridge: Only admin can set pending courier');
+        require(msg.sender == admin, 'PieBridge: Only admin can set pending courier');
 
-        // Store pendingCourier with value newPendingCourier
-        pendingCourier = newPendingCourier;
-
-        return true;
-    }
-
-    function _acceptCourier() public returns (bool) {
-        // Check caller is pendingAdmin
-        require(msg.sender != pendingCourier, 'PieBridge: Only pendingCourier can accept courier');
-
-        // Store admin with value pendingCourier
-        courier = pendingCourier;
-
-        // Clear the pending value
-        pendingCourier = address(0);
+        // Store courier with value pendingCourier
+        courier = newCourier;
 
         return true;
     }
@@ -104,9 +91,5 @@ contract PieBridge {
     function doTransferIn(address from, address token, uint amount) internal {
         IERC20 ERC20Interface = IERC20(token);
         ERC20Interface.safeTransferFrom(from, address(this), amount);
-    }
-
-    function getTimeStamp() public view virtual returns (uint) {
-        return block.timestamp;
     }
 }
