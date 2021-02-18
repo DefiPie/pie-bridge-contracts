@@ -9,13 +9,19 @@ contract PieBridge {
     using SafeERC20 for IERC20;
 
     address public admin;
+    address public pendingAdmin;
+    address public courier;
+    address public pendingCourier;
     address public bridgeToken;
 
     event Cross(address from, address to, uint amount);
     event Deliver(address to, uint amount);
 
-    constructor(address _bridgeToken) {
+    constructor(address _courier, address _bridgeToken) {
         admin = msg.sender;
+
+        require(_courier != address(0), "PieBridge: courier address is 0");
+        courier = _courier;
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
@@ -33,13 +39,59 @@ contract PieBridge {
     }
 
     function deliver(address to, uint amount) public returns (bool) {
-        require(msg.sender == admin, 'PieBridge: Only admin can send tokens');
+        require(msg.sender == courier, 'PieBridge: Only courier can send tokens');
         require(amount > 0, "PieBridge: must be positive");
         require(to != address(0), "PieBridge: to address is 0");
 
         doTransferOut(bridgeToken, to, amount);
 
         emit Deliver(to, amount);
+
+        return true;
+    }
+
+    function _setPendingAdmin(address newPendingAdmin) public returns (bool) {
+        // Check caller = admin
+        require(msg.sender != admin, 'PieBridge: Only admin can set pending admin');
+
+        // Store pendingAdmin with value newPendingAdmin
+        pendingAdmin = newPendingAdmin;
+
+        return true;
+    }
+
+    function _acceptAdmin() public returns (bool) {
+        // Check caller is pendingAdmin
+        require(msg.sender != pendingAdmin, 'PieBridge: Only pendingAdmin can accept admin');
+
+        // Store admin with value pendingAdmin
+        admin = pendingAdmin;
+
+        // Clear the pending value
+        pendingAdmin = address(0);
+
+        return true;
+    }
+
+    function _setPendingcCourier(address newPendingCourier) public returns (bool) {
+        // Check caller = admin
+        require(msg.sender != admin, 'PieBridge: Only admin can set pending courier');
+
+        // Store pendingCourier with value newPendingCourier
+        pendingCourier = newPendingCourier;
+
+        return true;
+    }
+
+    function _acceptCourier() public returns (bool) {
+        // Check caller is pendingAdmin
+        require(msg.sender != pendingAdmin, 'PieBridge: Only pendingCourier can accept courier');
+
+        // Store admin with value pendingCourier
+        courier = pendingCourier;
+
+        // Clear the pending value
+        pendingCourier = address(0);
 
         return true;
     }
