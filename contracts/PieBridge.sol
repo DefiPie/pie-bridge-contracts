@@ -85,7 +85,7 @@ contract PieBridge {
 
     function _acceptCourier() public returns (bool) {
         // Check caller is pendingAdmin
-        require(msg.sender != pendingAdmin, 'PieBridge: Only pendingCourier can accept courier');
+        require(msg.sender != pendingCourier, 'PieBridge: Only pendingCourier can accept courier');
 
         // Store admin with value pendingCourier
         courier = pendingCourier;
