@@ -19,3 +19,4 @@ package-lock.json
 scenario/package-lock.json
 *.log
 networks
+test/.gitkeep
