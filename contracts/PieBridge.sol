@@ -14,10 +14,12 @@ contract PieBridge {
     address public pendingCourier;
     address public bridgeToken;
 
+    uint public fee;
+
     event Cross(address from, address to, uint amount);
     event Deliver(address to, uint amount);
 
-    constructor(address _courier, address _bridgeToken) {
+    constructor(address _courier, address _bridgeToken, uint _fee) {
         admin = msg.sender;
 
         require(_courier != address(0), "PieBridge: courier address is 0");
@@ -25,6 +27,8 @@ contract PieBridge {
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
+
+        fee = _fee;
     }
 
     function cross(address to, uint amount) public returns (bool) {
@@ -32,6 +36,7 @@ contract PieBridge {
         require(to != address(0), "PieBridge: to address is 0");
 
         doTransferIn(msg.sender, bridgeToken, amount);
+        doTransferOut(bridgeToken, courier, fee);
 
         emit Cross(msg.sender, to, amount);
 
@@ -79,6 +84,16 @@ contract PieBridge {
 
         // Store courier with value pendingCourier
         courier = newCourier;
+
+        return true;
+    }
+
+    function _setFee(address newFee) public returns (bool) {
+        // Check caller = admin
+        require(msg.sender == admin, 'PieBridge: Only admin can set fee');
+
+        // Store fee with value newFee
+        fee = newFee;
 
         return true;
     }
