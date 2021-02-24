@@ -14,10 +14,13 @@ contract PieBridge {
     address public pendingCourier;
     address public bridgeToken;
 
+    uint public crossNonce;
+    mapping (uint => bool) public deliverNonces;
+
     uint public fee;
 
-    event Cross(address from, address to, uint amount);
-    event Deliver(address to, uint amount);
+    event Cross(address from, address to, uint amount, uint nonce);
+    event Deliver(address to, uint amount, uint nonce);
     event NewFee(uint newFee);
 
     constructor(address _courier, address _bridgeToken, uint _fee) {
@@ -39,19 +42,24 @@ contract PieBridge {
         doTransferIn(msg.sender, bridgeToken, amount);
         doTransferOut(bridgeToken, courier, fee);
 
-        emit Cross(msg.sender, to, amount - fee);
+        crossNonce++;
+
+        emit Cross(msg.sender, to, amount - fee, crossNonce);
 
         return true;
     }
 
-    function deliver(address to, uint amount) public returns (bool) {
+    function deliver(address to, uint amount, uint nonce) public returns (bool) {
         require(msg.sender == courier, 'PieBridge: Only courier can send tokens');
         require(amount > 0, "PieBridge: must be positive");
         require(to != address(0), "PieBridge: to address is 0");
+        require(deliverNonces[nonce] == false, "PieBridge: bad nonce");
 
         doTransferOut(bridgeToken, to, amount);
 
-        emit Deliver(to, amount);
+        deliverNonces[nonce] = true;
+
+        emit Deliver(to, amount, nonce);
 
         return true;
     }
