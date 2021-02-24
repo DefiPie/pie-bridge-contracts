@@ -14,13 +14,15 @@ contract PieBridge {
     address public pendingCourier;
     address public bridgeToken;
 
-    uint public crossNonce;
-    mapping (uint => bool) public deliverNonces;
+    // chainId => nonce
+    mapping (uint => uint) crossNonce;
+    // chainId => (nonce => deliver)
+    mapping (uint => mapping (uint => bool)) public deliverNonces;
 
     uint public fee;
 
-    event Cross(address from, address to, uint amount, uint nonce);
-    event Deliver(address to, uint amount, uint nonce);
+    event Cross(address from, address to, uint amount, uint chainId, uint nonce);
+    event Deliver(uint fromChainId, address to, uint amount, uint nonce);
     event NewFee(uint newFee);
 
     constructor(address _courier, address _bridgeToken, uint _fee) {
@@ -35,31 +37,31 @@ contract PieBridge {
         fee = _fee;
     }
 
-    function cross(address to, uint amount) public returns (bool) {
+    function cross(uint chainId, address to, uint amount) public returns (bool) {
         require(amount > fee, "PieBridge: amount must be more than fee");
         require(to != address(0), "PieBridge: to address is 0");
 
         doTransferIn(msg.sender, bridgeToken, amount);
         doTransferOut(bridgeToken, courier, fee);
 
-        crossNonce++;
+        crossNonce[chainId]++;
 
-        emit Cross(msg.sender, to, amount - fee, crossNonce);
+        emit Cross(msg.sender, to, amount - fee, chainId, crossNonce[chainId]);
 
         return true;
     }
 
-    function deliver(address to, uint amount, uint nonce) public returns (bool) {
+    function deliver(uint fromChainId, address to, uint amount, uint nonce) public returns (bool) {
         require(msg.sender == courier, 'PieBridge: Only courier can send tokens');
         require(amount > 0, "PieBridge: must be positive");
         require(to != address(0), "PieBridge: to address is 0");
-        require(deliverNonces[nonce] == false, "PieBridge: bad nonce");
+        require(!deliverNonces[fromChainId][nonce], "PieBridge: bad nonce");
 
         doTransferOut(bridgeToken, to, amount);
 
-        deliverNonces[nonce] = true;
+        deliverNonces[fromChainId][nonce] = true;
 
-        emit Deliver(to, amount, nonce);
+        emit Deliver(fromChainId, to, amount, nonce);
 
         return true;
     }
