@@ -3,9 +3,9 @@
 // or
 // > truffle migrate --network bsctestnet
 // for verify:
-// > truffle run verify PieBridge@0x21832803f68bA96330fb6dBd934AAbd8057d113E --network rinkeby
+// > truffle run verify PieBridge@0xC5E5516A4624EdFec39E99b2A79515c29AF4085b --network rinkeby
 // or
-// > truffle run verify PieBridge@0x61961BfaA5d1876e37798e6EFfBA335e9EBCf6c0 --network bsctestnet
+// > truffle run verify PieBridge@0xAB8237B53c1A751b94598b5Bd3ee04de2DFe49cA --network bsctestnet
 
 const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
