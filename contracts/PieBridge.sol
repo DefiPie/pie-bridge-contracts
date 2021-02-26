@@ -14,6 +14,9 @@ contract PieBridge {
     address public pendingCourier;
     address public bridgeToken;
 
+    // fromChainId => toChainIds
+    mapping(uint => uint[]) public routes;
+
     // chainId => nonce
     mapping (uint => uint) crossNonce;
     // chainId => (nonce => deliver)
@@ -40,6 +43,7 @@ contract PieBridge {
     function cross(uint chainId, address to, uint amount) public returns (bool) {
         require(amount > fee, "PieBridge: amount must be more than fee");
         require(to != address(0), "PieBridge: to address is 0");
+        require(checkRoute(chainId), "PieBridge: chainId is not support");
 
         doTransferIn(msg.sender, bridgeToken, amount);
         doTransferOut(bridgeToken, courier, fee);
@@ -109,6 +113,35 @@ contract PieBridge {
         emit NewFee(newFee);
 
         return true;
+    }
+
+    function getRoutes() public view returns (uint[] memory) {
+        return routes[getChainId()];
+    }
+
+    function setRoutes(uint[] memory newRoutes) public {
+        // Check caller = admin
+        require(msg.sender == admin, 'PieBridge: Only admin can set routes');
+
+        routes[getChainId()] = newRoutes;
+    }
+
+    function checkRoute(uint toChainId) public view returns (bool) {
+        uint fromChainId = getChainId();
+
+        for(uint i = 0; i < routes[fromChainId].length; i++) {
+            if (routes[fromChainId][i] == toChainId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function getChainId() internal pure returns (uint) {
+        uint chainId;
+        assembly { chainId := chainid() }
+        return chainId;
     }
 
     function doTransferOut(address token, address to, uint amount) internal {
