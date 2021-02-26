@@ -14,8 +14,7 @@ contract PieBridge {
     address public pendingCourier;
     address public bridgeToken;
 
-    // fromChainId => toChainIds
-    mapping(uint => uint[]) public routes;
+    uint[] public routes;
 
     // chainId => nonce
     mapping (uint => uint) crossNonce;
@@ -116,32 +115,24 @@ contract PieBridge {
     }
 
     function getRoutes() public view returns (uint[] memory) {
-        return routes[getChainId()];
+        return routes;
     }
 
     function setRoutes(uint[] memory newRoutes) public {
         // Check caller = admin
         require(msg.sender == admin, 'PieBridge: Only admin can set routes');
 
-        routes[getChainId()] = newRoutes;
+        routes = newRoutes;
     }
 
     function checkRoute(uint toChainId) public view returns (bool) {
-        uint fromChainId = getChainId();
-
-        for(uint i = 0; i < routes[fromChainId].length; i++) {
-            if (routes[fromChainId][i] == toChainId) {
+        for(uint i = 0; i < routes.length; i++) {
+            if (routes[i] == toChainId) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    function getChainId() internal pure returns (uint) {
-        uint chainId;
-        assembly { chainId := chainid() }
-        return chainId;
     }
 
     function doTransferOut(address token, address to, uint amount) internal {
