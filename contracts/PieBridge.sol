@@ -11,7 +11,6 @@ contract PieBridge {
     address public admin;
     address public pendingAdmin;
     address public courier;
-    address public pendingCourier;
     address public bridgeToken;
 
     uint[] public routes;
