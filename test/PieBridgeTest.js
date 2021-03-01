@@ -21,6 +21,7 @@ let pieERC20;
 let admin, courier;
 let ac1, ac2, ac3;
 let bridgeETH, bridgeBSC;
+let fee;
 
 async function balancePieBep20(addr) {
     const res = await pieBEP20.methods.balanceOf(addr).call();
@@ -42,6 +43,7 @@ describe('Bridge Tests', function () {
         ac2 = accounts[2];
         ac3 = accounts[3];
         courier = accounts[9];
+        fee = '0';
 
         pieBEP20 = await new web3.eth.Contract(TokenEmulateJson['abi'])
             .deploy({ data: TokenEmulateJson['bytecode'], arguments: [
@@ -53,11 +55,11 @@ describe('Bridge Tests', function () {
             .send({ from: admin, gas: GAS });
         bridgeBSC = await new web3.eth.Contract(BridgeJson['abi'])
             .deploy({ data: BridgeJson['bytecode'], arguments: [
-                    courier, pieBEP20._address, 0] })
+                    courier, pieBEP20._address, fee] })
             .send({ from: admin, gas: GAS });
         bridgeETH = await new web3.eth.Contract(BridgeJson['abi'])
             .deploy({ data: BridgeJson['bytecode'], arguments: [
-                    courier, pieERC20._address, 0] })
+                    courier, pieERC20._address, fee] })
             .send({ from: admin, gas: GAS });
     });
 
@@ -73,14 +75,14 @@ describe('Bridge Tests', function () {
             assert.deepStrictEqual(bridgeTokenContract, pieBEP20._address);
 
             const feeContract = await bridgeBSC.methods.fee().call();
-            assert.deepStrictEqual(feeContract, '0');
+            assert.deepStrictEqual(feeContract, fee);
         });
 
         it('Courier address is 0', async () => {
             await expectRevert(
                 new web3.eth.Contract(BridgeJson['abi'])
                     .deploy({ data: BridgeJson['bytecode'], arguments: [
-                            constants.ZERO_ADDRESS, pieBEP20._address, '0'] })
+                            constants.ZERO_ADDRESS, pieBEP20._address, fee] })
                     .send({ from: admin, gas: GAS }),
                 'PieBridge: courier address is 0',
             );
@@ -90,10 +92,130 @@ describe('Bridge Tests', function () {
             await expectRevert(
                 new web3.eth.Contract(BridgeJson['abi'])
                     .deploy({ data: BridgeJson['bytecode'], arguments: [
-                            courier, constants.ZERO_ADDRESS, '0'] })
+                            courier, constants.ZERO_ADDRESS, fee] })
                     .send({ from: admin, gas: GAS }),
                 'PieBridge: bridgeToken address is 0',
             );
         });
     });
+
+    describe('Admin functions', () => {
+        it('Set pending admin', async () => {
+            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            assert.deepStrictEqual(pendingAdminContract, constants.ZERO_ADDRESS);
+
+            let newPendingAdmin = ac1;
+            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+
+            const newPendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            assert.deepStrictEqual(newPendingAdminContract, newPendingAdmin);
+        });
+
+        it('Accept admin', async () => {
+            const adminContract = await bridgeBSC.methods.admin().call();
+            assert.deepStrictEqual(adminContract, admin);
+
+            let newPendingAdmin = ac1;
+            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+
+            const newPendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            assert.deepStrictEqual(newPendingAdminContract, newPendingAdmin);
+
+            await bridgeBSC.methods._acceptAdmin().send({ from: ac1, gas: GAS });
+
+            const newAdminContract = await bridgeBSC.methods.admin().call();
+            assert.deepStrictEqual(newAdminContract, newPendingAdmin);
+
+            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            assert.deepStrictEqual(pendingAdminContract, constants.ZERO_ADDRESS);
+        });
+
+        it('Set pending admin from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeBSC.methods._setPendingAdmin(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set pending admin',
+            );
+        });
+
+        it('Accept admin from not pendingAdmin', async () => {
+            const adminContract = await bridgeBSC.methods.admin().call();
+            assert.deepStrictEqual(adminContract, admin);
+
+            let newPendingAdmin = ac1;
+            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+
+            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            assert.deepStrictEqual(pendingAdminContract, newPendingAdmin);
+
+            let notPendingAdmin = ac2;
+            await expectRevert(
+                bridgeBSC.methods._acceptAdmin().send({ from: notPendingAdmin, gas: GAS }),
+                'PieBridge: Only pendingAdmin can accept admin',
+            );
+
+            assert.deepStrictEqual(pendingAdminContract, newPendingAdmin);
+        });
+
+        it('Set courier', async () => {
+            const courierContract = await bridgeBSC.methods.courier().call();
+            assert.deepStrictEqual(courierContract, courier);
+
+            let newCourier = ac1;
+            await bridgeBSC.methods._setCourier(newCourier).send({ from: admin, gas: GAS });
+
+            const newCourierContract = await bridgeBSC.methods.courier().call();
+            assert.deepStrictEqual(newCourierContract, newCourier);
+        });
+
+        it('Set courier from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeBSC.methods._setCourier(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set courier',
+            );
+        });
+
+        it('Set fee', async () => {
+            const feeContract = await bridgeBSC.methods.fee().call();
+            assert.deepStrictEqual(feeContract, fee);
+
+            let newFee = '1';
+            await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+
+            const newFeeContract = await bridgeBSC.methods.fee().call();
+            assert.deepStrictEqual(newFeeContract, newFee);
+        });
+
+        it('Set fee from not admin', async () => {
+            let notAdmin = ac1;
+            let newFee = '100';
+            await expectRevert(
+                bridgeBSC.methods._setFee(newFee).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set fee',
+            );
+        });
+
+        it('Set routes', async () => {
+            let routes = [];
+            const routesContract = await bridgeBSC.methods.getRoutes().call();
+            assert.deepStrictEqual(routesContract, routes);
+
+            let newRoutes = ['3','4'];
+            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+
+            const newRoutesContract = await bridgeBSC.methods.getRoutes().call();
+            assert.deepStrictEqual(newRoutesContract, newRoutes);
+        });
+
+        it('Set fee from not admin', async () => {
+            let notAdmin = ac1;
+            let newRoutes = ['3','4', '18'];
+            await expectRevert(
+                bridgeBSC.methods.setRoutes(newRoutes).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set routes',
+            );
+        });
+    });
+
 });
