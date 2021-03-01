@@ -95,7 +95,7 @@ contract PieBridge {
         // Check caller = admin
         require(msg.sender == admin, 'PieBridge: Only admin can set courier');
 
-        // Store courier with value pendingCourier
+        // Store courier with value newCourier
         courier = newCourier;
 
         return true;
