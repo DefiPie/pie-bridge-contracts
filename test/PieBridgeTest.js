@@ -181,7 +181,11 @@ describe('Bridge Tests', function () {
             assert.deepStrictEqual(feeContract, fee);
 
             let newFee = '1';
-            await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+            let tx = await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewFee', {
+                newFee: newFee
+            });
 
             const newFeeContract = await bridgeBSC.methods.fee().call();
             assert.deepStrictEqual(newFeeContract, newFee);
@@ -215,6 +219,41 @@ describe('Bridge Tests', function () {
                 bridgeBSC.methods.setRoutes(newRoutes).send({ from: notAdmin, gas: GAS }),
                 'PieBridge: Only admin can set routes',
             );
+        });
+    });
+
+    describe('Check routes', () => {
+        it('Check data for check routes function', async () => {
+            let ropstenChainID = '3';
+            let rinkebyChainID = '4';
+            let bscChainId = '97';
+
+            let result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            assert.deepStrictEqual(result, false);
+
+            let newRoutes = [ropstenChainID, rinkebyChainID];
+            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+
+            result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            assert.deepStrictEqual(result, true);
+
+            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            assert.deepStrictEqual(result, true);
+
+            result = await bridgeBSC.methods.checkRoute(bscChainId).call();
+            assert.deepStrictEqual(result, false);
+
+            newRoutes = [bscChainId];
+            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+
+            result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            assert.deepStrictEqual(result, false);
+
+            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            assert.deepStrictEqual(result, false);
+
+            result = await bridgeBSC.methods.checkRoute(bscChainId).call();
+            assert.deepStrictEqual(result, true);
         });
     });
 
