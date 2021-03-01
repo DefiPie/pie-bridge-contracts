@@ -16,7 +16,7 @@ contract PieBridge {
     uint[] public routes;
 
     // chainId => nonce
-    mapping (uint => uint) crossNonce;
+    mapping (uint => uint) public crossNonce;
     // chainId => (nonce => deliver)
     mapping (uint => mapping (uint => bool)) public deliverNonces;
 
