@@ -14,6 +14,8 @@ const {
 } = require('@openzeppelin/test-helpers');
 
 const GAS ='5000000';
+const ropstenChainID = '3';
+const rinkebyChainID = '4';
 
 let accounts;
 let pieBEP20;
@@ -224,8 +226,6 @@ describe('Bridge Tests', function () {
 
     describe('Check routes', () => {
         it('Check data for check routes function', async () => {
-            let ropstenChainID = '3';
-            let rinkebyChainID = '4';
             let bscChainId = '97';
 
             let result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
@@ -254,6 +254,119 @@ describe('Bridge Tests', function () {
 
             result = await bridgeBSC.methods.checkRoute(bscChainId).call();
             assert.deepStrictEqual(result, true);
+        });
+    });
+
+    describe('Cross', () => {
+        beforeEach(async () => {
+            let newRoutes = [ropstenChainID, rinkebyChainID];
+            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+
+            let newFee = '100';
+            await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+
+            let amount = '1000';
+            let user = ac1;
+            await pieBEP20.methods.transfer(user, amount).send({ from: admin, gas: GAS });
+        });
+
+        it('Check data before cross', async () => {
+            let fee = '100';
+            let tokenBalance = '1000';
+
+            let result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            assert.deepStrictEqual(result, true);
+
+            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            assert.deepStrictEqual(result, true);
+
+            const feeContract = await bridgeBSC.methods.fee().call();
+            assert.deepStrictEqual(feeContract, fee);
+
+            let balanceOfAc1 = await balancePieBep20(ac1);
+            assert.deepStrictEqual(balanceOfAc1, tokenBalance);
+        });
+
+        it('Cross with amount is 0', async () => {
+            let user = ac1;
+            let to = ac1;
+            let amount = '0';
+
+            await expectRevert(
+                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                'PieBridge: amount must be more than fee',
+            );
+
+            let currentFee = '100';
+            amount = currentFee;
+
+            await expectRevert(
+                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                'PieBridge: amount must be more than fee',
+            );
+        });
+
+        it('Cross with to address is 0', async () => {
+            let user = ac1;
+            let to = constants.ZERO_ADDRESS;
+            let amount = '101';
+
+            await expectRevert(
+                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                'PieBridge: to address is 0',
+            );
+        });
+
+        it('Cross with bad chain id', async () => {
+            let user = ac1;
+            let to = ac1;
+            let amount = '101';
+            let chainId = '12';
+
+            await expectRevert(
+                bridgeBSC.methods.cross(chainId, to, amount).send({ from: user, gas: GAS }),
+                'PieBridge: chainId is not support',
+            );
+        });
+
+        it('Cross with not approve token', async () => {
+            let user = ac1;
+            let to = ac1;
+            let amount = '101';
+
+            await expectRevert(
+                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                'ERC20: transfer amount exceeds allowance',
+            );
+        });
+
+        it('Cross with not approve token', async () => {
+            let user = ac1;
+            let to = ac1;
+            let amount = '101';
+            let currentFee = '100';
+
+            await pieBEP20.methods.approve(bridgeBSC._address, amount).send({ from: user, gas: GAS });
+
+            let courierBalance = await balancePieBep20(courier);
+            assert.deepStrictEqual(courierBalance, '0');
+
+            let contractBalance = await balancePieBep20(bridgeBSC._address);
+            assert.deepStrictEqual(contractBalance, '0');
+
+            const crossNonceContract = await bridgeBSC.methods.crossNonce(rinkebyChainID).call();
+            assert.deepStrictEqual(crossNonceContract, '0');
+
+            await bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS });
+
+            let courierBalanceAfterCross = await balancePieBep20(courier);
+            assert.deepStrictEqual(courierBalanceAfterCross, currentFee);
+
+            let contractBalanceAfterCross = await balancePieBep20(bridgeBSC._address);
+            assert.deepStrictEqual(contractBalanceAfterCross, '1');
+
+            const crossNonceContractAfterCross = await bridgeBSC.methods.crossNonce(rinkebyChainID).call();
+            assert.deepStrictEqual(crossNonceContractAfterCross, '1');
         });
     });
 
