@@ -93,7 +93,7 @@ contract PieBridge {
 
     function _setCourier(address newCourier) public returns (bool) {
         // Check caller = admin
-        require(msg.sender == admin, 'PieBridge: Only admin can set pending courier');
+        require(msg.sender == admin, 'PieBridge: Only admin can set courier');
 
         // Store courier with value pendingCourier
         courier = newCourier;
