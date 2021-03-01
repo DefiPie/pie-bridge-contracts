@@ -54,8 +54,8 @@ contract PieBridge {
     }
 
     function deliver(uint fromChainId, address to, uint amount, uint nonce) public returns (bool) {
-        require(msg.sender == courier, 'PieBridge: Only courier can send tokens');
-        require(amount > 0, "PieBridge: must be positive");
+        require(msg.sender == courier, 'PieBridge: Only courier can deliver tokens');
+        require(amount > 0, "PieBridge: amount must be positive");
         require(to != address(0), "PieBridge: to address is 0");
         require(!deliverNonces[fromChainId][nonce], "PieBridge: bad nonce");
 
