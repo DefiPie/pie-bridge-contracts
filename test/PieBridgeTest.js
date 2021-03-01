@@ -340,7 +340,7 @@ describe('Bridge Tests', function () {
             );
         });
 
-        it('Cross with not approve token', async () => {
+        it('Good cross', async () => {
             let user = ac1;
             let to = ac1;
             let amount = '101';
@@ -357,7 +357,15 @@ describe('Bridge Tests', function () {
             const crossNonceContract = await bridgeBSC.methods.crossNonce(rinkebyChainID).call();
             assert.deepStrictEqual(crossNonceContract, '0');
 
-            await bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS });
+            let tx = await bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS });
+
+            expectEvent(tx, 'Cross', {
+                from: user,
+                to: to,
+                amount: '1',
+                chainId: rinkebyChainID,
+                nonce: '1'
+            });
 
             let courierBalanceAfterCross = await balancePieBep20(courier);
             assert.deepStrictEqual(courierBalanceAfterCross, currentFee);
@@ -370,4 +378,96 @@ describe('Bridge Tests', function () {
         });
     });
 
+    describe('Deliver', () => {
+        beforeEach(async () => {
+            let amount = '1000';
+            await pieERC20.methods.transfer(bridgeETH._address, amount).send({ from: admin, gas: GAS });
+        });
+
+        it('Check data before deliver', async () => {
+            let tokenBalance = '1000';
+
+            let balanceOfBridge = await balancePieErc20(bridgeETH._address);
+            assert.deepStrictEqual(balanceOfBridge, tokenBalance);
+        });
+
+        it('Deliver with amount is 0', async () => {
+            let to = ac1;
+            let amount = '0';
+            let nonce = '1';
+
+            await expectRevert(
+                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                'PieBridge: amount must be positive',
+            );
+        });
+
+        it('Deliver with to address is 0', async () => {
+            let to = constants.ZERO_ADDRESS;
+            let amount = '100';
+            let nonce = '1';
+
+            await expectRevert(
+                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                'PieBridge: to address is 0',
+            );
+        });
+
+        it('Deliver with not courier', async () => {
+            let to = ac1;
+            let amount = '100';
+            let nonce = '1';
+
+            await expectRevert(
+                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: to, gas: GAS }),
+                'PieBridge: Only courier can deliver tokens',
+            );
+        });
+
+        it('Good deliver', async () => {
+            let to = ac1;
+            let amount = '1';
+            let nonce = '1';
+
+            let userBalance = await balancePieErc20(to);
+            assert.deepStrictEqual(userBalance, '0');
+
+            let contractBalance = await balancePieErc20(bridgeETH._address);
+            assert.deepStrictEqual(contractBalance, '1000');
+
+            const deliverNonceContract = await bridgeETH.methods.deliverNonces(rinkebyChainID, nonce).call();
+            assert.deepStrictEqual(deliverNonceContract, false);
+
+            let tx = await bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
+
+            expectEvent(tx, 'Deliver', {
+                fromChainId: rinkebyChainID,
+                to: to,
+                amount: '1',
+                nonce: '1'
+            });
+
+            let userBalanceAfterDeliver = await balancePieErc20(to);
+            assert.deepStrictEqual(userBalanceAfterDeliver, amount);
+
+            let contractBalanceAfterDeliver = await balancePieErc20(bridgeETH._address);
+            assert.deepStrictEqual(contractBalanceAfterDeliver, '999');
+
+            const deliverNonceContractAfterDeliver = await bridgeETH.methods.deliverNonces(rinkebyChainID, nonce).call();
+            assert.deepStrictEqual(deliverNonceContractAfterDeliver, true);
+        });
+
+        it('Deliver twice with identical nonce', async () => {
+            let to = ac1;
+            let amount = '1';
+            let nonce = '1';
+
+            await bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
+
+            await expectRevert(
+                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                'PieBridge: bad nonce',
+            );
+        });
+    });
 });
