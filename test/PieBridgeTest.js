@@ -166,7 +166,12 @@ describe('Bridge Tests', function () {
             const newPendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(newPendingAdminContract, newPendingAdmin);
 
-            await bridgeProxyBSC.methods._acceptAdmin().send({ from: ac1, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._acceptAdmin().send({ from: ac1, gas: GAS });
+
+            expectEvent(tx, 'NewAdmin', {
+                oldAdmin: admin,
+                newAdmin: newPendingAdmin
+            });
 
             const newAdminContract = await bridgeProxyBSC.methods.admin().call();
             assert.deepStrictEqual(newAdminContract, newPendingAdmin);
@@ -231,7 +236,11 @@ describe('Bridge Tests', function () {
             assert.deepStrictEqual(courierContract, courier);
 
             let newCourier = ac1;
-            await bridgeProxyBSC.methods._setCourier(newCourier).send({ from: admin, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._setCourier(newCourier).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewCourier', {
+                newCourier: newCourier
+            });
 
             const newCourierContract = await bridgeProxyBSC.methods.courier().call();
             assert.deepStrictEqual(newCourierContract, newCourier);
@@ -242,6 +251,29 @@ describe('Bridge Tests', function () {
             await expectRevert(
                 bridgeProxyBSC.methods._setCourier(notAdmin).send({ from: notAdmin, gas: GAS }),
                 'PieBridge: Only admin can set courier',
+            );
+        });
+
+        it('Set guardian', async () => {
+            const guardianContract = await bridgeProxyBSC.methods.guardian().call();
+            assert.deepStrictEqual(guardianContract, guardian);
+
+            let newGuardian = ac1;
+            let tx = await bridgeProxyBSC.methods._setGuardian(newGuardian).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewGuardian', {
+                newGuardian: newGuardian
+            });
+
+            const newGuardianContract = await bridgeProxyBSC.methods.guardian().call();
+            assert.deepStrictEqual(newGuardianContract, newGuardian);
+        });
+
+        it('Set guardian from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods._setGuardian(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set guardian',
             );
         });
 
@@ -274,7 +306,11 @@ describe('Bridge Tests', function () {
             assert.deepStrictEqual(routesContract, routes);
 
             let newRoutes = ['3','4'];
-            await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewRoutes', {
+                newRoutes: newRoutes
+            });
 
             const newRoutesContract = await bridgeProxyBSC.methods.getRoutes().call();
             assert.deepStrictEqual(newRoutesContract, newRoutes);
@@ -533,6 +569,27 @@ describe('Bridge Tests', function () {
             await expectRevert(
                 bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
                 'PieBridge: bad nonce',
+            );
+        });
+    });
+
+    describe('Guardian', () => {
+        it('Unset courier', async () => {
+            let tx = await bridgeProxyBSC.methods.unsetCourier().send({from: guardian, gas: GAS});
+
+            expectEvent(tx, 'NewCourier', {
+                newCourier: constants.ZERO_ADDRESS
+            });
+
+            const newCourierContract = await bridgeProxyBSC.methods.courier().call();
+            assert.deepStrictEqual(newCourierContract, constants.ZERO_ADDRESS);
+        });
+
+        it('Unset courier from not guardian', async () => {
+            let notGuardian = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods.unsetCourier().send({from: notGuardian, gas: GAS}),
+                'PieBridge: Only guardian can unset courier',
             );
         });
     });
