@@ -1,21 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
-contract ImplementationStorage {
+import "./ProxyStorage.sol";
 
-    address public implementation;
-
-    function _setImplementation(address implementation_) internal {
-        implementation = implementation_;
-    }
-}
-
-contract BridgeStorage {
-    address public admin;
-    address public pendingAdmin;
-}
-
-contract BridgeProxy is ImplementationStorage, BridgeStorage {
+contract BridgeProxy is ProxyStorage {
 
     event NewImplementation(address oldImplementation, address newImplementation);
 
@@ -113,6 +101,10 @@ contract BridgeProxy is ImplementationStorage, BridgeStorage {
         pendingAdmin = address(0);
 
         return true;
+    }
+
+    function _setImplementation(address implementation_) internal {
+        implementation = implementation_;
     }
 }
 

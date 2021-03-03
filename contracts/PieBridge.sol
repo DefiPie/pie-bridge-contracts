@@ -5,10 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-contract PieBridge {
+import "./ProxyStorage.sol";
+
+contract PieBridge is ProxyStorage {
     using SafeERC20 for IERC20;
 
-    address public admin;
     address public courier;
     address public guardian;
     address public bridgeToken;
@@ -36,8 +37,6 @@ contract PieBridge {
             routes.length == 0
             , "PieBridge may only be initialized once"
         );
-
-        admin = msg.sender;
 
         require(_courier != address(0), "PieBridge: courier address is 0");
         courier = _courier;
@@ -104,7 +103,7 @@ contract PieBridge {
     }
 
     function unsetCourier() public returns (bool) {
-        // Check caller = admin
+        // Check caller = guardian
         require(msg.sender == guardian, 'PieBridge: Only guardian can unset courier');
 
         // Store courier with value address(0)
