@@ -5,37 +5,45 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-contract PieBridge {
+import "./ProxyStorage.sol";
+import "./BridgeStorage.sol";
+
+contract PieBridge is ProxyStorage, BridgeStorageV1 {
     using SafeERC20 for IERC20;
-
-    address public admin;
-    address public pendingAdmin;
-    address public courier;
-    address public bridgeToken;
-
-    uint[] public routes;
-
-    // chainId => nonce
-    mapping (uint => uint) public crossNonce;
-    // chainId => (nonce => deliver)
-    mapping (uint => mapping (uint => bool)) public deliverNonces;
-
-    uint public fee;
 
     event Cross(address from, address to, uint amount, uint chainId, uint nonce);
     event Deliver(uint fromChainId, address to, uint amount, uint nonce);
     event NewFee(uint newFee);
+    event NewRoutes(uint[] newRoutes);
+    event NewCourier(address newCourier);
+    event NewGuardian(address newGuardian);
 
-    constructor(address _courier, address _bridgeToken, uint _fee) {
+    constructor() {}
+
+    function initialize(address _courier, address _guardian, address _bridgeToken, uint _fee, uint[] memory newRoutes) public {
+        require(
+            courier == address(0) &&
+            guardian == address(0) &&
+            bridgeToken == address(0) &&
+            fee == 0 &&
+            routes.length == 0
+            , "PieBridge may only be initialized once"
+        );
+
         admin = msg.sender;
 
         require(_courier != address(0), "PieBridge: courier address is 0");
-        courier = _courier;
+        _setCourier(_courier);
+
+        require(_guardian != address(0), "PieBridge: guardian address is 0");
+        _setGuardian(_guardian);
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
 
-        fee = _fee;
+        _setFee(_fee);
+        _setRoutes(newRoutes);
+
     }
 
     function cross(uint chainId, address to, uint amount) public returns (bool) {
@@ -68,35 +76,38 @@ contract PieBridge {
         return true;
     }
 
-    function _setPendingAdmin(address newPendingAdmin) public returns (bool) {
-        // Check caller = admin
-        require(msg.sender == admin, 'PieBridge: Only admin can set pending admin');
-
-        // Store pendingAdmin with value newPendingAdmin
-        pendingAdmin = newPendingAdmin;
-
-        return true;
-    }
-
-    function _acceptAdmin() public returns (bool) {
-        // Check caller is pendingAdmin
-        require(msg.sender == pendingAdmin, 'PieBridge: Only pendingAdmin can accept admin');
-
-        // Store admin with value pendingAdmin
-        admin = pendingAdmin;
-
-        // Clear the pending value
-        pendingAdmin = address(0);
-
-        return true;
-    }
-
     function _setCourier(address newCourier) public returns (bool) {
         // Check caller = admin
         require(msg.sender == admin, 'PieBridge: Only admin can set courier');
 
         // Store courier with value newCourier
         courier = newCourier;
+
+        emit NewCourier(courier);
+
+        return true;
+    }
+
+    function _setGuardian(address newGuadrdian) public returns (bool) {
+        // Check caller = admin
+        require(msg.sender == admin, 'PieBridge: Only admin can set guardian');
+
+        // Store guardian with value guardian
+        guardian = newGuadrdian;
+
+        emit NewGuardian(guardian);
+
+        return true;
+    }
+
+    function unsetCourier() public returns (bool) {
+        // Check caller = guardian
+        require(msg.sender == guardian, 'PieBridge: Only guardian can unset courier');
+
+        // Store courier with value address(0)
+        courier = address(0);
+
+        emit NewCourier(courier);
 
         return true;
     }
@@ -117,11 +128,13 @@ contract PieBridge {
         return routes;
     }
 
-    function setRoutes(uint[] memory newRoutes) public {
+    function _setRoutes(uint[] memory newRoutes) public {
         // Check caller = admin
         require(msg.sender == admin, 'PieBridge: Only admin can set routes');
 
         routes = newRoutes;
+
+        emit NewRoutes(routes);
     }
 
     function checkRoute(uint toChainId) public view returns (bool) {

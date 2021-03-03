@@ -3,6 +3,8 @@ const Web3 = require('web3');
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:7545"));
 const TokenEmulateJson = require('../build/contracts/TokenEmulate.json');
 const BridgeJson = require('../build/contracts/PieBridge.json');
+const BridgeProxyTestJson = require('../build/contracts/BridgeProxyTest.json');
+const BridgeProxyJson = require('../build/contracts/BridgeProxy.json');
 
 const abiDecoder = require('abi-decoder');
 const BigNumber = require('bignumber.js');
@@ -20,10 +22,12 @@ const rinkebyChainID = '4';
 let accounts;
 let pieBEP20;
 let pieERC20;
-let admin, courier;
+let admin, guardian, courier;
 let ac1, ac2, ac3;
 let bridgeETH, bridgeBSC;
+let bridgeProxyETH, bridgeProxyBSC;
 let fee;
+let routes;
 
 async function balancePieBep20(addr) {
     const res = await pieBEP20.methods.balanceOf(addr).call();
@@ -44,152 +48,247 @@ describe('Bridge Tests', function () {
         ac1 = accounts[1];
         ac2 = accounts[2];
         ac3 = accounts[3];
+        guardian = accounts[8];
         courier = accounts[9];
-        fee = '0';
+        fee = '1';
+        routes = ['1'];
 
         pieBEP20 = await new web3.eth.Contract(TokenEmulateJson['abi'])
             .deploy({ data: TokenEmulateJson['bytecode'], arguments: [
                     'pieBSCToken', 'PIEBSC'] })
             .send({ from: admin, gas: GAS });
+
         pieERC20 = await new web3.eth.Contract(TokenEmulateJson['abi'])
             .deploy({ data: TokenEmulateJson['bytecode'], arguments: [
                     'pieBSCToken', 'PIEBSC'] })
             .send({ from: admin, gas: GAS });
+
         bridgeBSC = await new web3.eth.Contract(BridgeJson['abi'])
-            .deploy({ data: BridgeJson['bytecode'], arguments: [
-                    courier, pieBEP20._address, fee] })
+            .deploy({ data: BridgeJson['bytecode']})
             .send({ from: admin, gas: GAS });
+
         bridgeETH = await new web3.eth.Contract(BridgeJson['abi'])
-            .deploy({ data: BridgeJson['bytecode'], arguments: [
-                    courier, pieERC20._address, fee] })
+            .deploy({ data: BridgeJson['bytecode']})
+            .send({ from: admin, gas: GAS });
+
+        bridgeProxyBSC = await new web3.eth.Contract(BridgeProxyTestJson['abi'])
+            .deploy({ data: BridgeProxyJson['bytecode'], arguments: [
+                    bridgeBSC._address, courier, guardian, pieBEP20._address, fee, routes] })
+            .send({ from: admin, gas: GAS });
+
+        bridgeProxyETH = await new web3.eth.Contract(BridgeProxyTestJson['abi'])
+            .deploy({ data: BridgeProxyJson['bytecode'], arguments: [
+                    bridgeETH._address, courier, guardian, pieERC20._address, fee, routes] })
             .send({ from: admin, gas: GAS });
     });
 
     describe('Constructor', () => {
         it('Check data for bridge', async () => {
-            const adminContract = await bridgeBSC.methods.admin().call();
+            const adminContract = await bridgeProxyBSC.methods.admin().call();
             assert.deepStrictEqual(adminContract, admin);
 
-            const courierContract = await bridgeBSC.methods.courier().call();
+            const courierContract = await bridgeProxyBSC.methods.courier().call();
             assert.deepStrictEqual(courierContract, courier);
 
-            const bridgeTokenContract = await bridgeBSC.methods.bridgeToken().call();
+            const guardianContract = await bridgeProxyBSC.methods.guardian().call();
+            assert.deepStrictEqual(guardianContract, guardian);
+
+            const bridgeTokenContract = await bridgeProxyBSC.methods.bridgeToken().call();
             assert.deepStrictEqual(bridgeTokenContract, pieBEP20._address);
 
-            const feeContract = await bridgeBSC.methods.fee().call();
+            const feeContract = await bridgeProxyBSC.methods.fee().call();
             assert.deepStrictEqual(feeContract, fee);
+
+            const routesContract = await bridgeProxyBSC.methods.getRoutes().call();
+            assert.deepStrictEqual(routesContract, routes);
         });
 
         it('Courier address is 0', async () => {
             await expectRevert(
-                new web3.eth.Contract(BridgeJson['abi'])
-                    .deploy({ data: BridgeJson['bytecode'], arguments: [
-                            constants.ZERO_ADDRESS, pieBEP20._address, fee] })
+                new web3.eth.Contract(BridgeProxyTestJson['abi'])
+                    .deploy({ data: BridgeProxyJson['bytecode'], arguments: [
+                            bridgeBSC._address, constants.ZERO_ADDRESS, guardian, pieBEP20._address, fee, routes] })
                     .send({ from: admin, gas: GAS }),
                 'PieBridge: courier address is 0',
             );
         });
 
+        it('Guardian address is 0', async () => {
+            await expectRevert(
+                new web3.eth.Contract(BridgeProxyTestJson['abi'])
+                    .deploy({ data: BridgeProxyJson['bytecode'], arguments: [
+                            bridgeBSC._address, courier, constants.ZERO_ADDRESS, pieBEP20._address, fee, routes] })
+                    .send({ from: admin, gas: GAS }),
+                'PieBridge: guardian address is 0',
+            );
+        });
+
         it('Bridge token address is 0', async () => {
             await expectRevert(
-                new web3.eth.Contract(BridgeJson['abi'])
-                    .deploy({ data: BridgeJson['bytecode'], arguments: [
-                            courier, constants.ZERO_ADDRESS, fee] })
+                new web3.eth.Contract(BridgeProxyTestJson['abi'])
+                    .deploy({ data: BridgeProxyJson['bytecode'], arguments: [
+                            bridgeBSC._address, courier, guardian, constants.ZERO_ADDRESS, fee, routes] })
                     .send({ from: admin, gas: GAS }),
                 'PieBridge: bridgeToken address is 0',
             );
         });
     });
 
+    describe('Init function', () => {
+        it('Call init twice', async () => {
+            await expectRevert(
+                bridgeProxyBSC.methods.initialize(courier, guardian, pieERC20._address, fee, routes)
+                    .send({ from: admin, gas: GAS }),
+                'PieBridge may only be initialized once',
+            );
+        });
+    });
+
     describe('Admin functions', () => {
         it('Set pending admin', async () => {
-            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            const pendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(pendingAdminContract, constants.ZERO_ADDRESS);
 
             let newPendingAdmin = ac1;
-            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
 
-            const newPendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            const newPendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(newPendingAdminContract, newPendingAdmin);
         });
 
         it('Accept admin', async () => {
-            const adminContract = await bridgeBSC.methods.admin().call();
+            const adminContract = await bridgeProxyBSC.methods.admin().call();
             assert.deepStrictEqual(adminContract, admin);
 
             let newPendingAdmin = ac1;
-            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
 
-            const newPendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            const newPendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(newPendingAdminContract, newPendingAdmin);
 
-            await bridgeBSC.methods._acceptAdmin().send({ from: ac1, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._acceptAdmin().send({ from: ac1, gas: GAS });
 
-            const newAdminContract = await bridgeBSC.methods.admin().call();
+            expectEvent(tx, 'NewAdmin', {
+                oldAdmin: admin,
+                newAdmin: newPendingAdmin
+            });
+
+            const newAdminContract = await bridgeProxyBSC.methods.admin().call();
             assert.deepStrictEqual(newAdminContract, newPendingAdmin);
 
-            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            const pendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(pendingAdminContract, constants.ZERO_ADDRESS);
         });
 
         it('Set pending admin from not admin', async () => {
             let notAdmin = ac1;
             await expectRevert(
-                bridgeBSC.methods._setPendingAdmin(notAdmin).send({ from: notAdmin, gas: GAS }),
-                'PieBridge: Only admin can set pending admin',
+                bridgeProxyBSC.methods._setPendingAdmin(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'BridgeProxy: Only admin can set pending admin',
             );
         });
 
         it('Accept admin from not pendingAdmin', async () => {
-            const adminContract = await bridgeBSC.methods.admin().call();
+            const adminContract = await bridgeProxyBSC.methods.admin().call();
             assert.deepStrictEqual(adminContract, admin);
 
             let newPendingAdmin = ac1;
-            await bridgeBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setPendingAdmin(newPendingAdmin).send({ from: admin, gas: GAS });
 
-            const pendingAdminContract = await bridgeBSC.methods.pendingAdmin().call();
+            const pendingAdminContract = await bridgeProxyBSC.methods.pendingAdmin().call();
             assert.deepStrictEqual(pendingAdminContract, newPendingAdmin);
 
             let notPendingAdmin = ac2;
             await expectRevert(
-                bridgeBSC.methods._acceptAdmin().send({ from: notPendingAdmin, gas: GAS }),
-                'PieBridge: Only pendingAdmin can accept admin',
+                bridgeProxyBSC.methods._acceptAdmin().send({ from: notPendingAdmin, gas: GAS }),
+                'BridgeProxy: Only pendingAdmin can accept admin',
             );
 
             assert.deepStrictEqual(pendingAdminContract, newPendingAdmin);
         });
 
+        it('Set implementation', async () => {
+            const implementationContract = await bridgeProxyBSC.methods.implementation().call();
+            assert.deepStrictEqual(implementationContract, bridgeBSC._address);
+
+            let newImplementation = bridgeETH._address;
+            let tx = await bridgeProxyBSC.methods.setImplementation(newImplementation).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewImplementation', {
+                oldImplementation: bridgeBSC._address,
+                newImplementation: bridgeETH._address
+            });
+
+            const newImplementationContract = await bridgeProxyBSC.methods.implementation().call();
+            assert.deepStrictEqual(newImplementationContract, newImplementation);
+        });
+
+        it('Set implementation from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods.setImplementation(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'BridgeProxy: Only admin can set implementation',
+            );
+        });
+
         it('Set courier', async () => {
-            const courierContract = await bridgeBSC.methods.courier().call();
+            const courierContract = await bridgeProxyBSC.methods.courier().call();
             assert.deepStrictEqual(courierContract, courier);
 
             let newCourier = ac1;
-            await bridgeBSC.methods._setCourier(newCourier).send({ from: admin, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._setCourier(newCourier).send({ from: admin, gas: GAS });
 
-            const newCourierContract = await bridgeBSC.methods.courier().call();
+            expectEvent(tx, 'NewCourier', {
+                newCourier: newCourier
+            });
+
+            const newCourierContract = await bridgeProxyBSC.methods.courier().call();
             assert.deepStrictEqual(newCourierContract, newCourier);
         });
 
         it('Set courier from not admin', async () => {
             let notAdmin = ac1;
             await expectRevert(
-                bridgeBSC.methods._setCourier(notAdmin).send({ from: notAdmin, gas: GAS }),
+                bridgeProxyBSC.methods._setCourier(notAdmin).send({ from: notAdmin, gas: GAS }),
                 'PieBridge: Only admin can set courier',
             );
         });
 
+        it('Set guardian', async () => {
+            const guardianContract = await bridgeProxyBSC.methods.guardian().call();
+            assert.deepStrictEqual(guardianContract, guardian);
+
+            let newGuardian = ac1;
+            let tx = await bridgeProxyBSC.methods._setGuardian(newGuardian).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewGuardian', {
+                newGuardian: newGuardian
+            });
+
+            const newGuardianContract = await bridgeProxyBSC.methods.guardian().call();
+            assert.deepStrictEqual(newGuardianContract, newGuardian);
+        });
+
+        it('Set guardian from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods._setGuardian(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'PieBridge: Only admin can set guardian',
+            );
+        });
+
         it('Set fee', async () => {
-            const feeContract = await bridgeBSC.methods.fee().call();
+            const feeContract = await bridgeProxyBSC.methods.fee().call();
             assert.deepStrictEqual(feeContract, fee);
 
             let newFee = '1';
-            let tx = await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
 
             expectEvent(tx, 'NewFee', {
                 newFee: newFee
             });
 
-            const newFeeContract = await bridgeBSC.methods.fee().call();
+            const newFeeContract = await bridgeProxyBSC.methods.fee().call();
             assert.deepStrictEqual(newFeeContract, newFee);
         });
 
@@ -197,20 +296,23 @@ describe('Bridge Tests', function () {
             let notAdmin = ac1;
             let newFee = '100';
             await expectRevert(
-                bridgeBSC.methods._setFee(newFee).send({ from: notAdmin, gas: GAS }),
+                bridgeProxyBSC.methods._setFee(newFee).send({ from: notAdmin, gas: GAS }),
                 'PieBridge: Only admin can set fee',
             );
         });
 
         it('Set routes', async () => {
-            let routes = [];
-            const routesContract = await bridgeBSC.methods.getRoutes().call();
+            const routesContract = await bridgeProxyBSC.methods.getRoutes().call();
             assert.deepStrictEqual(routesContract, routes);
 
             let newRoutes = ['3','4'];
-            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+            let tx = await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
 
-            const newRoutesContract = await bridgeBSC.methods.getRoutes().call();
+            expectEvent(tx, 'NewRoutes', {
+                newRoutes: newRoutes
+            });
+
+            const newRoutesContract = await bridgeProxyBSC.methods.getRoutes().call();
             assert.deepStrictEqual(newRoutesContract, newRoutes);
         });
 
@@ -218,7 +320,7 @@ describe('Bridge Tests', function () {
             let notAdmin = ac1;
             let newRoutes = ['3','4', '18'];
             await expectRevert(
-                bridgeBSC.methods.setRoutes(newRoutes).send({ from: notAdmin, gas: GAS }),
+                bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: notAdmin, gas: GAS }),
                 'PieBridge: Only admin can set routes',
             );
         });
@@ -228,31 +330,31 @@ describe('Bridge Tests', function () {
         it('Check data for check routes function', async () => {
             let bscChainId = '97';
 
-            let result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            let result = await bridgeProxyBSC.methods.checkRoute(ropstenChainID).call();
             assert.deepStrictEqual(result, false);
 
             let newRoutes = [ropstenChainID, rinkebyChainID];
-            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
 
-            result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            result = await bridgeProxyBSC.methods.checkRoute(ropstenChainID).call();
             assert.deepStrictEqual(result, true);
 
-            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            result = await bridgeProxyBSC.methods.checkRoute(rinkebyChainID).call();
             assert.deepStrictEqual(result, true);
 
-            result = await bridgeBSC.methods.checkRoute(bscChainId).call();
+            result = await bridgeProxyBSC.methods.checkRoute(bscChainId).call();
             assert.deepStrictEqual(result, false);
 
             newRoutes = [bscChainId];
-            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
 
-            result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            result = await bridgeProxyBSC.methods.checkRoute(ropstenChainID).call();
             assert.deepStrictEqual(result, false);
 
-            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            result = await bridgeProxyBSC.methods.checkRoute(rinkebyChainID).call();
             assert.deepStrictEqual(result, false);
 
-            result = await bridgeBSC.methods.checkRoute(bscChainId).call();
+            result = await bridgeProxyBSC.methods.checkRoute(bscChainId).call();
             assert.deepStrictEqual(result, true);
         });
     });
@@ -260,10 +362,10 @@ describe('Bridge Tests', function () {
     describe('Cross', () => {
         beforeEach(async () => {
             let newRoutes = [ropstenChainID, rinkebyChainID];
-            await bridgeBSC.methods.setRoutes(newRoutes).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setRoutes(newRoutes).send({ from: admin, gas: GAS });
 
             let newFee = '100';
-            await bridgeBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
+            await bridgeProxyBSC.methods._setFee(newFee).send({ from: admin, gas: GAS });
 
             let amount = '1000';
             let user = ac1;
@@ -274,13 +376,13 @@ describe('Bridge Tests', function () {
             let fee = '100';
             let tokenBalance = '1000';
 
-            let result = await bridgeBSC.methods.checkRoute(ropstenChainID).call();
+            let result = await bridgeProxyBSC.methods.checkRoute(ropstenChainID).call();
             assert.deepStrictEqual(result, true);
 
-            result = await bridgeBSC.methods.checkRoute(rinkebyChainID).call();
+            result = await bridgeProxyBSC.methods.checkRoute(rinkebyChainID).call();
             assert.deepStrictEqual(result, true);
 
-            const feeContract = await bridgeBSC.methods.fee().call();
+            const feeContract = await bridgeProxyBSC.methods.fee().call();
             assert.deepStrictEqual(feeContract, fee);
 
             let balanceOfAc1 = await balancePieBep20(ac1);
@@ -293,7 +395,7 @@ describe('Bridge Tests', function () {
             let amount = '0';
 
             await expectRevert(
-                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                bridgeProxyBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
                 'PieBridge: amount must be more than fee',
             );
 
@@ -301,7 +403,7 @@ describe('Bridge Tests', function () {
             amount = currentFee;
 
             await expectRevert(
-                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                bridgeProxyBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
                 'PieBridge: amount must be more than fee',
             );
         });
@@ -312,7 +414,7 @@ describe('Bridge Tests', function () {
             let amount = '101';
 
             await expectRevert(
-                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                bridgeProxyBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
                 'PieBridge: to address is 0',
             );
         });
@@ -324,7 +426,7 @@ describe('Bridge Tests', function () {
             let chainId = '12';
 
             await expectRevert(
-                bridgeBSC.methods.cross(chainId, to, amount).send({ from: user, gas: GAS }),
+                bridgeProxyBSC.methods.cross(chainId, to, amount).send({ from: user, gas: GAS }),
                 'PieBridge: chainId is not support',
             );
         });
@@ -335,7 +437,7 @@ describe('Bridge Tests', function () {
             let amount = '101';
 
             await expectRevert(
-                bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
+                bridgeProxyBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS }),
                 'ERC20: transfer amount exceeds allowance',
             );
         });
@@ -346,18 +448,18 @@ describe('Bridge Tests', function () {
             let amount = '101';
             let currentFee = '100';
 
-            await pieBEP20.methods.approve(bridgeBSC._address, amount).send({ from: user, gas: GAS });
+            await pieBEP20.methods.approve(bridgeProxyBSC._address, amount).send({ from: user, gas: GAS });
 
             let courierBalance = await balancePieBep20(courier);
             assert.deepStrictEqual(courierBalance, '0');
 
-            let contractBalance = await balancePieBep20(bridgeBSC._address);
+            let contractBalance = await balancePieBep20(bridgeProxyBSC._address);
             assert.deepStrictEqual(contractBalance, '0');
 
-            const crossNonceContract = await bridgeBSC.methods.crossNonce(rinkebyChainID).call();
+            const crossNonceContract = await bridgeProxyBSC.methods.crossNonce(rinkebyChainID).call();
             assert.deepStrictEqual(crossNonceContract, '0');
 
-            let tx = await bridgeBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS });
+            let tx = await bridgeProxyBSC.methods.cross(rinkebyChainID, to, amount).send({ from: user, gas: GAS });
 
             expectEvent(tx, 'Cross', {
                 from: user,
@@ -370,10 +472,10 @@ describe('Bridge Tests', function () {
             let courierBalanceAfterCross = await balancePieBep20(courier);
             assert.deepStrictEqual(courierBalanceAfterCross, currentFee);
 
-            let contractBalanceAfterCross = await balancePieBep20(bridgeBSC._address);
+            let contractBalanceAfterCross = await balancePieBep20(bridgeProxyBSC._address);
             assert.deepStrictEqual(contractBalanceAfterCross, '1');
 
-            const crossNonceContractAfterCross = await bridgeBSC.methods.crossNonce(rinkebyChainID).call();
+            const crossNonceContractAfterCross = await bridgeProxyBSC.methods.crossNonce(rinkebyChainID).call();
             assert.deepStrictEqual(crossNonceContractAfterCross, '1');
         });
     });
@@ -381,13 +483,13 @@ describe('Bridge Tests', function () {
     describe('Deliver', () => {
         beforeEach(async () => {
             let amount = '1000';
-            await pieERC20.methods.transfer(bridgeETH._address, amount).send({ from: admin, gas: GAS });
+            await pieERC20.methods.transfer(bridgeProxyETH._address, amount).send({ from: admin, gas: GAS });
         });
 
         it('Check data before deliver', async () => {
             let tokenBalance = '1000';
 
-            let balanceOfBridge = await balancePieErc20(bridgeETH._address);
+            let balanceOfBridge = await balancePieErc20(bridgeProxyETH._address);
             assert.deepStrictEqual(balanceOfBridge, tokenBalance);
         });
 
@@ -397,7 +499,7 @@ describe('Bridge Tests', function () {
             let nonce = '1';
 
             await expectRevert(
-                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
                 'PieBridge: amount must be positive',
             );
         });
@@ -408,7 +510,7 @@ describe('Bridge Tests', function () {
             let nonce = '1';
 
             await expectRevert(
-                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
                 'PieBridge: to address is 0',
             );
         });
@@ -419,7 +521,7 @@ describe('Bridge Tests', function () {
             let nonce = '1';
 
             await expectRevert(
-                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: to, gas: GAS }),
+                bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: to, gas: GAS }),
                 'PieBridge: Only courier can deliver tokens',
             );
         });
@@ -432,13 +534,13 @@ describe('Bridge Tests', function () {
             let userBalance = await balancePieErc20(to);
             assert.deepStrictEqual(userBalance, '0');
 
-            let contractBalance = await balancePieErc20(bridgeETH._address);
+            let contractBalance = await balancePieErc20(bridgeProxyETH._address);
             assert.deepStrictEqual(contractBalance, '1000');
 
-            const deliverNonceContract = await bridgeETH.methods.deliverNonces(rinkebyChainID, nonce).call();
+            const deliverNonceContract = await bridgeProxyETH.methods.deliverNonces(rinkebyChainID, nonce).call();
             assert.deepStrictEqual(deliverNonceContract, false);
 
-            let tx = await bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
+            let tx = await bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
 
             expectEvent(tx, 'Deliver', {
                 fromChainId: rinkebyChainID,
@@ -450,10 +552,10 @@ describe('Bridge Tests', function () {
             let userBalanceAfterDeliver = await balancePieErc20(to);
             assert.deepStrictEqual(userBalanceAfterDeliver, amount);
 
-            let contractBalanceAfterDeliver = await balancePieErc20(bridgeETH._address);
+            let contractBalanceAfterDeliver = await balancePieErc20(bridgeProxyETH._address);
             assert.deepStrictEqual(contractBalanceAfterDeliver, '999');
 
-            const deliverNonceContractAfterDeliver = await bridgeETH.methods.deliverNonces(rinkebyChainID, nonce).call();
+            const deliverNonceContractAfterDeliver = await bridgeProxyETH.methods.deliverNonces(rinkebyChainID, nonce).call();
             assert.deepStrictEqual(deliverNonceContractAfterDeliver, true);
         });
 
@@ -462,11 +564,32 @@ describe('Bridge Tests', function () {
             let amount = '1';
             let nonce = '1';
 
-            await bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
+            await bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS });
 
             await expectRevert(
-                bridgeETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
+                bridgeProxyETH.methods.deliver(rinkebyChainID, to, amount, nonce).send({ from: courier, gas: GAS }),
                 'PieBridge: bad nonce',
+            );
+        });
+    });
+
+    describe('Guardian', () => {
+        it('Unset courier', async () => {
+            let tx = await bridgeProxyBSC.methods.unsetCourier().send({from: guardian, gas: GAS});
+
+            expectEvent(tx, 'NewCourier', {
+                newCourier: constants.ZERO_ADDRESS
+            });
+
+            const newCourierContract = await bridgeProxyBSC.methods.courier().call();
+            assert.deepStrictEqual(newCourierContract, constants.ZERO_ADDRESS);
+        });
+
+        it('Unset courier from not guardian', async () => {
+            let notGuardian = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods.unsetCourier().send({from: notGuardian, gas: GAS}),
+                'PieBridge: Only guardian can unset courier',
             );
         });
     });
