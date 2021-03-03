@@ -6,21 +6,10 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./ProxyStorage.sol";
+import "./BridgeStorage.sol";
 
-contract PieBridge is ProxyStorage {
+contract PieBridge is ProxyStorage, BridgeStorageV1 {
     using SafeERC20 for IERC20;
-
-    address public courier;
-    address public guardian;
-    address public bridgeToken;
-    uint public fee;
-
-    uint[] public routes;
-
-    // chainId => nonce
-    mapping (uint => uint) public crossNonce;
-    // chainId => (nonce => deliver)
-    mapping (uint => mapping (uint => bool)) public deliverNonces;
 
     event Cross(address from, address to, uint amount, uint chainId, uint nonce);
     event Deliver(uint fromChainId, address to, uint amount, uint nonce);
