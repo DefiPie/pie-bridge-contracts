@@ -33,7 +33,7 @@ contract BridgeProxy is ImplementationStorage, BridgeStorage {
         _setImplementation(bridgeImplementation_);
 
         // First delegate gets to initialize the delegator (i.e. storage contract)
-        delegateTo(implementation, abi.encodeWithSignature("initialize(address,address,address,uint,uint[])",
+        delegateTo(implementation, abi.encodeWithSignature("initialize(address,address,address,uint256,uint256[])",
             _courier,
             _guardian,
             _bridgeToken,
