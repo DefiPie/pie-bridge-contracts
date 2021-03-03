@@ -9,9 +9,9 @@ contract PieBridge {
     using SafeERC20 for IERC20;
 
     address public admin;
-    address public pendingAdmin;
     address public courier;
     address public bridgeToken;
+    uint public fee;
 
     uint[] public routes;
 
@@ -20,13 +20,20 @@ contract PieBridge {
     // chainId => (nonce => deliver)
     mapping (uint => mapping (uint => bool)) public deliverNonces;
 
-    uint public fee;
-
     event Cross(address from, address to, uint amount, uint chainId, uint nonce);
     event Deliver(uint fromChainId, address to, uint amount, uint nonce);
     event NewFee(uint newFee);
 
-    constructor(address _courier, address _bridgeToken, uint _fee) {
+    constructor() {}
+
+    function initialize(address _courier, address _bridgeToken, uint _fee) public {
+        require(
+            courier == address(0) &&
+            bridgeToken == address(0) &&
+            fee == 0
+            , "PieBridge may only be initialized once"
+        );
+
         admin = msg.sender;
 
         require(_courier != address(0), "PieBridge: courier address is 0");
@@ -64,29 +71,6 @@ contract PieBridge {
         deliverNonces[fromChainId][nonce] = true;
 
         emit Deliver(fromChainId, to, amount, nonce);
-
-        return true;
-    }
-
-    function _setPendingAdmin(address newPendingAdmin) public returns (bool) {
-        // Check caller = admin
-        require(msg.sender == admin, 'PieBridge: Only admin can set pending admin');
-
-        // Store pendingAdmin with value newPendingAdmin
-        pendingAdmin = newPendingAdmin;
-
-        return true;
-    }
-
-    function _acceptAdmin() public returns (bool) {
-        // Check caller is pendingAdmin
-        require(msg.sender == pendingAdmin, 'PieBridge: Only pendingAdmin can accept admin');
-
-        // Store admin with value pendingAdmin
-        admin = pendingAdmin;
-
-        // Clear the pending value
-        pendingAdmin = address(0);
 
         return true;
     }
