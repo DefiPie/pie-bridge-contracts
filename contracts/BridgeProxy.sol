@@ -5,6 +5,7 @@ import "./ProxyStorage.sol";
 
 contract BridgeProxy is ProxyStorage {
 
+    event NewAdmin(address oldAdmin, address newAdmin);
     event NewImplementation(address oldImplementation, address newImplementation);
 
     constructor(
@@ -94,11 +95,15 @@ contract BridgeProxy is ProxyStorage {
         // Check caller is pendingAdmin
         require(msg.sender == pendingAdmin, 'BridgeProxy: Only pendingAdmin can accept admin');
 
+        address oldAdmin = admin;
+
         // Store admin with value pendingAdmin
         admin = pendingAdmin;
 
         // Clear the pending value
         pendingAdmin = address(0);
+
+        emit NewAdmin(oldAdmin, admin);
 
         return true;
     }
