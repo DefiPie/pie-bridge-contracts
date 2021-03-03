@@ -10,6 +10,7 @@ contract PieBridge {
 
     address public admin;
     address public courier;
+    address public guardian;
     address public bridgeToken;
     uint public fee;
 
@@ -26,9 +27,10 @@ contract PieBridge {
 
     constructor() {}
 
-    function initialize(address _courier, address _bridgeToken, uint _fee, uint[] memory newRoutes) public {
+    function initialize(address _courier, address _guardian, address _bridgeToken, uint _fee, uint[] memory newRoutes) public {
         require(
             courier == address(0) &&
+            guardian == address(0) &&
             bridgeToken == address(0) &&
             fee == 0 &&
             routes.length == 0
@@ -39,6 +41,9 @@ contract PieBridge {
 
         require(_courier != address(0), "PieBridge: courier address is 0");
         courier = _courier;
+
+        require(_guardian != address(0), "PieBridge: guardian address is 0");
+        guardian = _guardian;
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
@@ -84,6 +89,26 @@ contract PieBridge {
 
         // Store courier with value newCourier
         courier = newCourier;
+
+        return true;
+    }
+
+    function _setGuardian(address newGuadrdian) public returns (bool) {
+        // Check caller = admin
+        require(msg.sender == admin, 'PieBridge: Only admin can set guardian');
+
+        // Store guardian with value guardian
+        guardian = newGuadrdian;
+
+        return true;
+    }
+
+    function unsetCourier() public returns (bool) {
+        // Check caller = admin
+        require(msg.sender == guardian, 'PieBridge: Only guardian can unset courier');
+
+        // Store courier with value address(0)
+        courier = address(0);
 
         return true;
     }
