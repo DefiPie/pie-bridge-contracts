@@ -91,9 +91,6 @@ describe('Bridge Tests', function () {
 
             const feeContract = await bridgeProxyBSC.methods.fee().call();
             assert.deepStrictEqual(feeContract, fee);
-
-            const feeContract = await bridgeBSC.methods.fee().call();
-            assert.deepStrictEqual(feeContract, fee);
         });
 
         it('Courier address is 0', async () => {

@@ -25,6 +25,9 @@ contract PieBridge is ProxyStorage {
     event Cross(address from, address to, uint amount, uint chainId, uint nonce);
     event Deliver(uint fromChainId, address to, uint amount, uint nonce);
     event NewFee(uint newFee);
+    event NewRoutes(uint[] newRoutes);
+    event NewCourier(address newCourier);
+    event NewGuardian(address newGuardian);
 
     constructor() {}
 
@@ -41,10 +44,10 @@ contract PieBridge is ProxyStorage {
         admin = msg.sender;
 
         require(_courier != address(0), "PieBridge: courier address is 0");
-        courier = _courier;
+        _setCourier(_courier);
 
         require(_guardian != address(0), "PieBridge: guardian address is 0");
-        guardian = _guardian;
+        _setGuardian(_guardian);
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
@@ -91,6 +94,8 @@ contract PieBridge is ProxyStorage {
         // Store courier with value newCourier
         courier = newCourier;
 
+        emit NewCourier(courier);
+
         return true;
     }
 
@@ -101,6 +106,8 @@ contract PieBridge is ProxyStorage {
         // Store guardian with value guardian
         guardian = newGuadrdian;
 
+        emit NewGuardian(guardian);
+
         return true;
     }
 
@@ -110,6 +117,8 @@ contract PieBridge is ProxyStorage {
 
         // Store courier with value address(0)
         courier = address(0);
+
+        emit NewCourier(courier);
 
         return true;
     }
@@ -135,6 +144,8 @@ contract PieBridge is ProxyStorage {
         require(msg.sender == admin, 'PieBridge: Only admin can set routes');
 
         routes = newRoutes;
+
+        emit NewRoutes(routes);
     }
 
     function checkRoute(uint toChainId) public view returns (bool) {
