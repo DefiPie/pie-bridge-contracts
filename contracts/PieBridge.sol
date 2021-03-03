@@ -49,9 +49,9 @@ contract PieBridge is ProxyStorage {
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
 
-        routes = newRoutes;
+        _setFee(_fee);
+        _setRoutes(newRoutes);
 
-        fee = _fee;
     }
 
     function cross(uint chainId, address to, uint amount) public returns (bool) {
@@ -130,7 +130,7 @@ contract PieBridge is ProxyStorage {
         return routes;
     }
 
-    function setRoutes(uint[] memory newRoutes) public {
+    function _setRoutes(uint[] memory newRoutes) public {
         // Check caller = admin
         require(msg.sender == admin, 'PieBridge: Only admin can set routes');
 
