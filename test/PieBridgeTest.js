@@ -202,6 +202,30 @@ describe('Bridge Tests', function () {
             assert.deepStrictEqual(pendingAdminContract, newPendingAdmin);
         });
 
+        it('Set implementation', async () => {
+            const implementationContract = await bridgeProxyBSC.methods.implementation().call();
+            assert.deepStrictEqual(implementationContract, bridgeBSC._address);
+
+            let newImplementation = bridgeETH._address;
+            let tx = await bridgeProxyBSC.methods.setImplementation(newImplementation).send({ from: admin, gas: GAS });
+
+            expectEvent(tx, 'NewImplementation', {
+                oldImplementation: bridgeBSC._address,
+                newImplementation: bridgeETH._address
+            });
+
+            const newImplementationContract = await bridgeProxyBSC.methods.implementation().call();
+            assert.deepStrictEqual(newImplementationContract, newImplementation);
+        });
+
+        it('Set implementation from not admin', async () => {
+            let notAdmin = ac1;
+            await expectRevert(
+                bridgeProxyBSC.methods.setImplementation(notAdmin).send({ from: notAdmin, gas: GAS }),
+                'BridgeProxy: Only admin can set implementation',
+            );
+        });
+
         it('Set courier', async () => {
             const courierContract = await bridgeProxyBSC.methods.courier().call();
             assert.deepStrictEqual(courierContract, courier);

@@ -71,7 +71,7 @@ contract BridgeProxy is ProxyStorage {
     }
 
     function setImplementation(address newImplementation) external returns (bool) {
-        require(msg.sender == admin, 'BridgeProxy: Only admin can set pending admin');
+        require(msg.sender == admin, 'BridgeProxy: Only admin can set implementation');
 
         address oldImplementation = implementation;
         _setImplementation(newImplementation);

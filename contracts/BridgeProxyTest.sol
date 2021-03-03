@@ -4,6 +4,10 @@ pragma solidity 0.7.6;
 import "./PieBridge.sol";
 
 contract BridgeProxyTest is PieBridge {
+
+    event NewAdmin(address oldAdmin, address newAdmin);
+    event NewImplementation(address oldImplementation, address newImplementation);
+
     constructor(
         address bridgeImplementation_,
         address _courier,
@@ -21,6 +25,11 @@ contract BridgeProxyTest is PieBridge {
     }
 
     function _acceptAdmin() public returns (bool) {
+        // for abi in tests
+        return true;
+    }
+
+    function setImplementation(address) external returns (bool) {
         // for abi in tests
         return true;
     }
