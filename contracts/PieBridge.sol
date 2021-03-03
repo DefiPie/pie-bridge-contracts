@@ -38,6 +38,8 @@ contract PieBridge is ProxyStorage {
             , "PieBridge may only be initialized once"
         );
 
+        admin = msg.sender;
+
         require(_courier != address(0), "PieBridge: courier address is 0");
         courier = _courier;
 
