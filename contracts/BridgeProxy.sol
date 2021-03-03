@@ -1,4 +1,5 @@
-pragma solidity ^0.7.4;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.7.6;
 
 contract ImplementationStorage {
 
@@ -22,7 +23,8 @@ contract BridgeProxy is ImplementationStorage, BridgeStorage {
         address bridgeImplementation_,
         address _courier,
         address _bridgeToken,
-        uint _fee
+        uint _fee,
+        uint[] memory _newRoutes
     ) {
         // Set admin to caller
         admin = msg.sender;
@@ -30,10 +32,11 @@ contract BridgeProxy is ImplementationStorage, BridgeStorage {
         _setImplementation(bridgeImplementation_);
 
         // First delegate gets to initialize the delegator (i.e. storage contract)
-        delegateTo(implementation, abi.encodeWithSignature("initialize(address,address,uint)",
+        delegateTo(implementation, abi.encodeWithSignature("initialize(address,address,uint,uint[])",
             _courier,
             _bridgeToken,
-            _fee)
+            _fee,
+            _newRoutes)
         );
     }
 

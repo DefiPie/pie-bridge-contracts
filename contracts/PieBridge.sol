@@ -26,11 +26,12 @@ contract PieBridge {
 
     constructor() {}
 
-    function initialize(address _courier, address _bridgeToken, uint _fee) public {
+    function initialize(address _courier, address _bridgeToken, uint _fee, uint[] memory newRoutes) public {
         require(
             courier == address(0) &&
             bridgeToken == address(0) &&
-            fee == 0
+            fee == 0 &&
+            routes.length == 0
             , "PieBridge may only be initialized once"
         );
 
@@ -41,6 +42,8 @@ contract PieBridge {
 
         require(_bridgeToken != address(0), "PieBridge: bridgeToken address is 0");
         bridgeToken = _bridgeToken;
+
+        routes = newRoutes;
 
         fee = _fee;
     }
