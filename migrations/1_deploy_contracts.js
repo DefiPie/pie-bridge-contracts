@@ -14,7 +14,7 @@ const Proxy = artifacts.require("BridgeProxy");
 
 module.exports = async function(deployer, network, accounts) {
 
-    let courier = '0x9D19Be3814dB048C73F804db05d59a3EBd0F20B3';
+    let courier;
     let guardian = '0x6EBD066e2891922f3c1BfD426B2a49D5D0bc11C8';
     let pie;
     let fee = '1';
@@ -22,15 +22,19 @@ module.exports = async function(deployer, network, accounts) {
 
     if (network === 'bsctestnet') {
         pie = '0xd50da88069c69BF093e8dca1532Cc81711D9e0F4';
+        courier = '0x9D19Be3814dB048C73F804db05d59a3EBd0F20B3';
         routes = ['3', '4'];
     } else if (network === 'rinkeby') {
         pie = '0xb36afc9f38d8ac6f991bb9939d3ee8d45a7a1285';
+        courier = '0x9D19Be3814dB048C73F804db05d59a3EBd0F20B3';
         routes = ['3','97'];
     } else if (network === 'mainnet') {
         pie = '0x607C794cDa77efB21F8848B7910ecf27451Ae842';
+        courier = '0x84aeFb0B787Fbc3a2CAF83dE068937FB8a70CF1C';
         routes = ['56'];
     } else if (network === 'bsc') {
         pie = '0xC4B35d3A24E3e8941c5d87fD21D0725642F50308';
+        courier = '0x84aeFb0B787Fbc3a2CAF83dE068937FB8a70CF1C';
         routes = ['1'];
     } else {
         console.log('Pie is not defined');
